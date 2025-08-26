@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Centro de Computación "ZAMANEB"</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .inUse {
+      background: linear-gradient(to right, #001f3f, #0074D9); /* Azul marino a azul */
+    }
+    .notInUse {
+      background: linear-gradient(to right, #FF4136, #FF6347); /* Rojo fuerte */
+    }
+    .computer {
+      width: 72px;
+      height: 72px;
+      border-radius: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: #fff;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.3s;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      font-family: 'Courier New', Courier, monospace;
+    }
+    .computer:hover {
+      transform: scale(1.08);
+      box-shadow: 0 6px 14px rgba(0,0,0,0.3);
+    }
+    #modalBg {
+      backdrop-filter: blur(4px);
+    }
+  </style>
+</head>
+<body class="bg-white text-gray-900 min-h-screen flex flex-col items-center p-4 gap-4">
+
+  <h1 class="text-4xl font-extrabold text-center text-blue-900">Centro de Computación "ZAMANEB"</h1>
+
+  <div class="w-full max-w-5xl flex flex-col sm:flex-row gap-4 items-center justify-center">
+    <input id="searchInput" type="text" placeholder="Buscar por código (ej. B7)" class="flex-1 px-4 py-2 rounded-md border border-blue-900 shadow-inner" />
+    <button id="togglePanelBtn" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-md">Mostrar Panel</button>
+  </div>
+
+  <div id="layout" class="flex flex-col items-center gap-6 mt-6"></div>
+
+  <section id="adminPanel" class="hidden w-full max-w-5xl bg-blue-50 text-blue-900 p-4 rounded-lg shadow-lg">
+    <h2 class="text-2xl font-bold mb-3">Resumen de Computadoras</h2>
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-blue-200 text-sm">
+        <thead>
+          <tr class="bg-blue-100">
+            <th class="px-3 py-2 text-left font-semibold">Código</th>
+            <th class="px-3 py-2 text-left font-semibold">Estado</th>
+            <th class="px-3 py-2 text-left font-semibold">Comentario</th>
+          </tr>
+        </thead>
+        <tbody id="adminBody" class="divide-y divide-blue-100"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <div id="modal" class="fixed inset-0 hidden items-center justify-center z-50">
+    <div id="modalBg" class="absolute inset-0 bg-black/70"></div>
+    <div class="relative bg-white text-blue-900 rounded-lg p-6 w-11/12 max-w-md shadow-2xl">
+      <h3 id="modalTitle" class="text-xl font-bold"></h3>
+      <label class="block mt-4">Comentario:</label>
+      <textarea id="commentInput" class="w-full h-24 p-2 border rounded-md border-blue-300"></textarea>
+      <label class="block mt-4">Estado:</label>
+      <select id="statusSelect" class="w-full p-2 border rounded-md border-blue-300">
+        <option value="inUse">En uso (azul)</option>
+        <option value="notInUse">No en uso (rojo)</option>
+      </select>
+      <div class="flex justify-end gap-3 mt-6">
+        <button id="saveBtn" class="px-4 py-2 bg-blue-900 text-white rounded-lg">Guardar</button>
+        <button id="cancelBtn" class="px-4 py-2 bg-red-600 text-white rounded-lg">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const filas = ["A", "B", "C", "D"];
+    const pcsPorFila = 12;
+    const layoutEl = document.getElementById("layout");
+    const searchInput = document.getElementById("searchInput");
+    const adminPanel = document.getElementById("adminPanel");
+    const togglePanelBtn = document.getElementById("togglePanelBtn");
+    const adminBody = document.getElementById("adminBody");
+
+    const modal = document.getElementById("modal");
+    const modalTitle = document.getElementById("modalTitle");
+    const commentInput = document.getElementById("commentInput");
+    const statusSelect = document.getElementById("statusSelect");
+    const saveBtn = document.getElementById("saveBtn");
+    const cancelBtn = document.getElementById("cancelBtn");
+
+    let currentCode = "";
+
+    function getPCData(code) {
+      const raw = localStorage.getItem(code);
+      if (!raw) return { status: "notInUse", comment: "" };
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return { status: "notInUse", comment: "" };
+      }
+    }
+
+    function setPCData(code, data) {
+      localStorage.setItem(code, JSON.stringify(data));
+    }
+
+    function renderPC(code) {
+      const pcData = getPCData(code);
+      const div = document.createElement("div");
+      div.className = `computer ${pcData.status}`;
+      div.textContent = code;
+      div.dataset.code = code;
+      div.onclick = () => openModal(code);
+      return div;
+    }
+
+    function refreshAdminPanel() {
+      adminBody.innerHTML = "";
+      filas.forEach(fila => {
+        for (let i = 1; i <= pcsPorFila; i++) {
+          const code = fila + i;
+          const { status, comment } = getPCData(code);
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td class="px-3 py-2">${code}</td>
+            <td class="px-3 py-2">${status === "inUse" ? "En uso" : "No en uso"}</td>
+            <td class="px-3 py-2">${comment || "—"}</td>
+          `;
+          adminBody.appendChild(tr);
+        }
+      });
+    }
+
+    function buildLayout() {
+      layoutEl.innerHTML = "";
+      filas.forEach(fila => {
+        const rowDiv = document.createElement("div");
+        rowDiv.className = "flex flex-wrap gap-3 justify-center";
+        for (let i = 1; i <= pcsPorFila; i++) {
+          const code = fila + i;
+          rowDiv.appendChild(renderPC(code));
+        }
+        layoutEl.appendChild(rowDiv);
+      });
+    }
+
+    function openModal(code) {
+      currentCode = code;
+      const { status, comment } = getPCData(code);
+      modalTitle.textContent = `Computadora ${code}`;
+      commentInput.value = comment;
+      statusSelect.value = status;
+      modal.classList.remove("hidden");
+    }
+
+    function closeModal() {
+      modal.classList.add("hidden");
+    }
+
+    saveBtn.addEventListener("click", () => {
+      const newData = {
+        status: statusSelect.value,
+        comment: commentInput.value.trim()
+      };
+      setPCData(currentCode, newData);
+      const pcEl = document.querySelector(`[data-code='${currentCode}']`);
+      if (pcEl) {
+        pcEl.classList.remove("inUse", "notInUse");
+        pcEl.classList.add(newData.status);
+      }
+      refreshAdminPanel();
+      closeModal();
+    });
+    cancelBtn.addEventListener("click", closeModal);
+
+    searchInput.addEventListener("input", (e) => {
+      const query = e.target.value.toUpperCase().trim();
+      document.querySelectorAll(".computer").forEach(el => {
+        const code = el.dataset.code.toUpperCase();
+        el.style.display = code.includes(query) ? "flex" : "none";
+      });
+    });
+
+    togglePanelBtn.addEventListener("click", () => {
+      adminPanel.classList.toggle("hidden");
+      togglePanelBtn.textContent = adminPanel.classList.contains("hidden") ? "Mostrar Panel" : "Ocultar Panel";
+      refreshAdminPanel();
+    });
+
+    buildLayout();
+    refreshAdminPanel();
+  </script>
+</body>
+</html>
